@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Укриття по Україні (OSM)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; }
+    #map { width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Створюємо карту
+    const map = L.map('map').setView([49.0, 31.0], 6); // Центр України
+
+    // Підключаємо базову карту OSM
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 18,
+    }).addTo(map);
+
+    // Стилі для маркерів
+    const shelterIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684908.png',
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -10]
+    });
+
+    // Overpass запит на всю Україну (⚠️ це велика територія — може довго грузитися)
+    const query = `
+      [out:json][timeout:60];
+      (
+        node["building"="underground_parking"](47.0,22.0,52.5,40.5);
+        node["railway"="subway_entrance"](47.0,22.0,52.5,40.5);
+        node["highway"="footway"]["tunnel"="yes"](47.0,22.0,52.5,40.5);
+        node["highway"="footway"]["ramp"="yes"](47.0,22.0,52.5,40.5);
+      );
+      out body;
+    `;
+
+    const url = "https://overpass-api.de/api/interpreter";
+
+    fetch(url, {
+      method: "POST",
+      body: query
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.elements) return;
+        data.elements.forEach(el => {
+          if (el.lat && el.lon) {
+            const tags = el.tags || {};
+            const name = tags.name || "Укриття";
+            const type = tags.building || tags.railway || tags.highway || "невідомо";
+
+            L.marker([el.lat, el.lon], { icon: shelterIcon })
+              .addTo(map)
+              .bindPopup(`<strong>${name}</strong><br>Тип: ${type}`);
+          }
+        });
+      })
+      .catch(err => {
+        console.error("Помилка завантаження даних з Overpass API:", err);
+        alert("Не вдалося завантажити укриття з OpenStreetMap.");
+      });
+  </script>
+</body>
+</html>
